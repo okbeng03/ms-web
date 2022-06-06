@@ -7,7 +7,10 @@ module.exports = function (options, webpack) {
     entry: ['webpack/hot/poll?100', options.entry],
     externals: [
       nodeExternals({
-        allowlist: ['webpack/hot/poll?100']
+        allowlist: [
+          'webpack/hot/poll?100',
+          /^@exadel\/compreface-js-sdk/i
+        ]
       }),
     ],
     plugins: [

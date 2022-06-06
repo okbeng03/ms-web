@@ -346,6 +346,14 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
+"@exadel/compreface-js-sdk@^0.6.0":
+  version "0.6.0"
+  resolved "https://registry.npmmirror.com/@exadel/compreface-js-sdk/-/compreface-js-sdk-0.6.0.tgz#c7c6825909a810d8d4900c1c43d1ab4e50d6d624"
+  integrity sha512-Rn+hKd4UCFxddk8p9mjGpMO1aporIHCG5YPXx8cKOsD8BjaVSX/9Lv0tZ0bvqNnBGKX/3zsi/7SIVkKnE3PFuA==
+  dependencies:
+    axios "^0.21.1"
+    form-data "^4.0.0"
+
 "@humanwhocodes/config-array@^0.9.2":
   version "0.9.5"
   resolved "https://registry.npmmirror.com/@humanwhocodes/config-array/-/config-array-0.9.5.tgz#2cbaf9a89460da24b5ca6531b8bbfc23e1df50c7"
@@ -1579,6 +1587,13 @@ axios@0.27.2:
   dependencies:
     follow-redirects "^1.14.9"
     form-data "^4.0.0"
+
+axios@^0.21.1:
+  version "0.21.4"
+  resolved "https://registry.npmmirror.com/axios/-/axios-0.21.4.tgz#c67b90dc0568e5c1cf2b0b858c43ba28e2eda575"
+  integrity sha512-ut5vewkiu8jjGBdqpM44XxjuCjq9LAKeHVmoVfHVzy8eHgxxq8SbAVQNovDA8mVi05kP0Ea/n/UzcSHcTJQfNg==
+  dependencies:
+    follow-redirects "^1.14.0"
 
 babel-jest@^28.1.0:
   version "28.1.0"
@@ -3698,7 +3713,7 @@ folder-walker@^3.2.0:
   dependencies:
     from2 "^2.1.0"
 
-follow-redirects@^1.14.9:
+follow-redirects@^1.14.0, follow-redirects@^1.14.9:
   version "1.15.1"
   resolved "https://registry.npmmirror.com/follow-redirects/-/follow-redirects-1.15.1.tgz#0ca6a452306c9b276e4d3127483e29575e207ad5"
   integrity sha512-yLAMQs+k0b2m7cVxpS1VKJVvoz7SS9Td1zss3XRwXj+ZDH00RJgnuLx7E44wx02kQLrdM3aOOy+FpzS7+8OizA==

@@ -4,6 +4,7 @@ import { SsoController } from './sso.controller'
 import { SsoService } from './sso.service'
 import { AlbumConsumer } from './album.comsumer'
 import { MinioModule } from 'src/minio/minio.module'
+import { FaceaiModule } from 'src/faceai/faceai.module'
 
 @Module({
   controllers: [SsoController],
@@ -23,7 +24,8 @@ import { MinioModule } from 'src/minio/minio.module'
         host: 'localhost',
         port: 6379
       }
-    })
+    }),
+    FaceaiModule
   ]
 })
 export class SsoModule {}

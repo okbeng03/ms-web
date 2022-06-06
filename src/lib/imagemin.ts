@@ -6,7 +6,7 @@ const imageminSVG = require('imagemin-svgo')
 const path = require('path')
 
 const jpgPlugin = imageminJPG({
-  quality: 60
+  quality: 50
 })
 const pngPlugin = imageminPNG({
   quality: [0.6, 0.8]

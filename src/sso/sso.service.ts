@@ -24,7 +24,22 @@ export class SsoService {
 
   async copyObject(bucketName: string, objectName: string, sourceObject: string) {
     try {
+      // 先判断分桶是否存在，不存在就创建分桶
+      const exists =await this.minioClient.bucketExists(bucketName)
+
+      if (!exists) {
+        await this.minioClient.makeBucket(bucketName)
+      }
+
       return await this.minioClient.copyObject(bucketName, objectName, sourceObject)
+    } catch(err) {
+      throw err
+    }
+  }
+
+  async removeObject(bucketName: string, objectName: string) {
+    try {
+      return await this.minioClient.removeObject(bucketName, objectName)
     } catch(err) {
       throw err
     }
@@ -69,7 +84,8 @@ export class SsoService {
                   objectName: sourcePath,
                   minObjectName: minPath
                 })
-                // 缩略图队列
+
+                // TODO::缩略图队列
                 // await this.albumQueue.add('thumbnail', {
                 //   pucketName: 'ms-nogroup',
                 //   objectName: name
@@ -79,10 +95,19 @@ export class SsoService {
                 await this.albumQueue.add('recognition', {
                   bucketName: 'ms-nogroup',
                   objectName: sourcePath,
-                  minObjectName: minPath
+                  minObjectName: minPath,
+                  sourcePath: filepath,
+                  removeSource: syncDto.removeSource
+                }, {
+                  delay: 10000
                 })
               } else {
                 await this.putObject('others', basename, stream)
+
+                // 删除源文件
+                if (syncDto.removeSource) {
+                  await fs.rm(filepath)
+                }
               }
             } catch (err) {
               reject(err)
