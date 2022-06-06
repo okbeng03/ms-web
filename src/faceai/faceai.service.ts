@@ -55,7 +55,7 @@ export class FaceaiService {
           })
 
           list.push({
-            isRecognition: subjects[0].similarity >= 0.9,
+            isRecognition: subjects[0].similarity >= 0.95,
             ...subjects[0]
           })
         }
