@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common'
-import { SsoModule } from 'src/sso/sso.module'
+import { FaceaiController } from './faceai.controller'
 import { FaceaiService } from './faceai.service'
 
 @Module({
+  controllers: [FaceaiController],
   providers: [FaceaiService],
   exports: [FaceaiService]
 })

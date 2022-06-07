@@ -20,12 +20,17 @@ export class SsoController {
   // 相册
   @Get('albums')
   async listBuckets() {
-    return await this.minioClient.listBuckets()
+    try {
+      return await this.ssoService.listBuckets()
+    } catch(err) {
+      throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
+    }
   }
 
   // 获取相片数组
   @Post('photos')
   async listObjects(@Body() bucketDto: {bucketName: string, prefix?: string, recursive?: boolean}, @Res() res: Response) {
+    // TODO:: 通过tag增加描述功能
     const data = []
     const stream = this.minioClient.listObjects(bucketDto.bucketName, bucketDto.prefix, bucketDto.recursive)
     stream.on('data', function(obj) {
@@ -67,7 +72,7 @@ export class SsoController {
 
   // 移动目录
   @Post('copy')
-  async copyObject() {
+  async copyPhoto() {
 
   }
 

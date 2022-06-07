@@ -1,6 +1,7 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { CompreFace } from '@exadel/compreface-js-sdk'
+import { Stream } from 'stream'
 
 @Injectable()
 export class FaceaiService {
@@ -28,9 +29,9 @@ export class FaceaiService {
     }
   }
 
-  async addCollection(filepath: string, subject: string) {
+  async addCollection(stream: Stream, subject: string) {
     try {
-      return await this.faceCollection.add(filepath, subject)
+      return await this.faceCollection.add(stream, subject)
     } catch (err) {
       throw err
     }
