@@ -1,9 +1,10 @@
-import { Inject, Controller, Post, Body, HttpException, HttpStatus, Get, Res, UploadedFiles } from '@nestjs/common'
-import { Response } from 'express'
+import { Inject, Controller, Post, Body, HttpException, HttpStatus, Get, Param, UploadedFile, UseInterceptors } from '@nestjs/common'
+import { Express } from 'express'
+import { FileInterceptor } from '@nestjs/platform-express'
 import { MINIO_CLIENT } from 'src/constants'
 import { SsoService } from './sso.service'
 
-@Controller('sso')
+@Controller('api/sso')
 export class SsoController {
   constructor(@Inject(MINIO_CLIENT) private readonly minioClient, private ssoService: SsoService) {}
 
@@ -21,27 +22,20 @@ export class SsoController {
   @Get('albums')
   async listBuckets() {
     try {
-      return await this.ssoService.listBuckets()
+      return await this.ssoService.getBuckets()
     } catch(err) {
       throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
     }
   }
 
   // 获取相片数组
-  @Post('photos')
-  async listObjects(@Body() bucketDto: {bucketName: string, prefix?: string, recursive?: boolean}, @Res() res: Response) {
-    // TODO:: 通过tag增加描述功能
-    const data = []
-    const stream = this.minioClient.listObjects(bucketDto.bucketName, bucketDto.prefix, bucketDto.recursive)
-    stream.on('data', function(obj) {
-      data.push(obj)
-    })
-    stream.on('end', function () {
-      res.status(HttpStatus.OK).json(data)
-    })
-    stream.on('error', function(err) {
+  @Get('photos/:id')
+  async listObjects(@Param() params) {
+    try {
+      return await this.ssoService.getPhotos(params.id)
+    } catch(err) {
       throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
-    })
+    }
   }
 
   // 移除单张相片
@@ -66,8 +60,19 @@ export class SsoController {
 
   // 上传相片
   @Post('upload')
-  async uploadFile(@UploadedFiles() files: Array<Express.Multer.File>) {
-    
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fieldSize: 102400000
+      }
+    })
+  )
+  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+    try {
+      await this.ssoService.upload(file)
+    } catch(err) {
+      throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
+    }
   }
 
   // 移动目录

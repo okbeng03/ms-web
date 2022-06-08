@@ -3,7 +3,7 @@ import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/commo
 import { Stream } from 'stream'
 import { FaceaiService } from './faceai.service'
 
-@Controller('faceai')
+@Controller('api/faceai')
 export class FaceaiController {
   constructor(private readonly faceaiService: FaceaiService) {}
 

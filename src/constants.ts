@@ -11,3 +11,6 @@ export const OTHER_BUCKET = `${BUCKET_PREFIX}-other`
 export const SOURCE_DIR = 'source' // 源路径
 export const MIN_DIR = 'min' // 压缩路径
 export const THUMB_DIR = 'thumb' // 缩略图路径
+
+// 缓存key
+export const CACHE_BUCKETS = 'buckets_cache'
