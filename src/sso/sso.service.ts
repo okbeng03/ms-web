@@ -85,9 +85,13 @@ export class SsoService {
           const objects = await this.listObjects(bucket.name, 'source', true)
           bucket.objects = objects
           // 通过tag增加描述功能
-          const tags = await this.minioClient.getBucketTagging(bucket.name)
+          let tags = await this.minioClient.getBucketTagging(bucket.name)
 
           if (tags) {
+            if (Array.isArray(tags[0])) {
+              tags = tags[0]
+            }
+
             const tagging = {}
             tags.forEach(item => {
               tagging[item.Key] = item.Value

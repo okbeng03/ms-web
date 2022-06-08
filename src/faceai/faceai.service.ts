@@ -1,19 +1,21 @@
+import * as fs from 'fs/promises'
 import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { CompreFace } from '@exadel/compreface-js-sdk'
-import { Stream } from 'stream'
-
+const base64Img = require('base64-img')
 @Injectable()
 export class FaceaiService {
   private compreFace
   private recognitionService
   private faceCollection
   private subjects
+  private collectionDir
 
   constructor(private configService: ConfigService) {
     const url = configService.get<string>('COMPREFACE_URL')
     const port = configService.get<string>('COMPREFACE_PORT')
     const key = configService.get<string>('COMPREFACE_KEY')
+    this.collectionDir = configService.get<string>('COLLECTION_DIR')
 
     const compreFace = this.compreFace = new CompreFace(url, port)
     const recognitionService = this.recognitionService = compreFace.initFaceRecognitionService(key)
@@ -29,12 +31,24 @@ export class FaceaiService {
     }
   }
 
-  async addCollection(stream: Stream, subject: string) {
-    try {
-      return await this.faceCollection.add(stream, subject)
-    } catch (err) {
-      throw err
-    }
+  async addCollection(image, subject: string) {
+    return new Promise((resolve, reject) => {
+      base64Img.img(image, this.collectionDir, new Date().getTime(), async (err, filepath) => {
+        if (err) {
+          reject(err)
+        }
+        
+        try {
+          const fd = await fs.open(filepath, 'r')
+          const stream = fd.createReadStream()
+          await this.faceCollection.add(stream, subject)
+          await fs.rm(filepath)
+          resolve(null)
+        } catch(err) {
+          reject(err)
+        }
+      })
+    })
   }
 
   async recognize(stream) {

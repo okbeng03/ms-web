@@ -1,7 +1,5 @@
-import * as fs from 'fs/promises'
-import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common'
-import { Stream } from 'stream'
-import { FaceaiService } from './faceai.service'
+import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
+import { FaceaiService } from './faceai.service';
 
 @Controller('api/faceai')
 export class FaceaiController {
@@ -17,18 +15,9 @@ export class FaceaiController {
   }
 
   @Post('addCollection')
-  async addCollection(@Body() collection: {image: string | Stream, subject: string}) {
+  async addCollection(@Body() collection: {image: string, subject: string}) {
     try {
-      let stream: Stream
-
-      if (typeof collection.image === 'string') {
-        const fd = await fs.open(collection.image, 'r')
-        stream = fd.createReadStream()
-      } else {
-        stream = collection.image
-      }
-
-      await this.faceaiService.addCollection(stream, collection.subject)
+      await this.faceaiService.addCollection(collection.image, collection.subject)
     } catch(err) {
       throw new HttpException(err?.response?.data.message || err.message, HttpStatus.EXPECTATION_FAILED)
     }

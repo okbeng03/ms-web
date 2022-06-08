@@ -124,6 +124,9 @@ export class AlbumConsumer {
 
           await this.ssoService.putObject(bucketName, thumbName, stream)
 
+          // 删除文件
+          await fs.rm(output)
+
           console.log('thumbnail success::', objectName)
         })
     } catch (err) {
