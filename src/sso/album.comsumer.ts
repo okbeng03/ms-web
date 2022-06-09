@@ -125,9 +125,19 @@ export class AlbumConsumer {
           await this.ssoService.putObject(bucketName, thumbName, stream)
 
           // 添加tag指向源文件
-          await this.ssoService.pubObjectTag(bucketName, thumbName, {
-            source: objectName
-          })
+          const tag = {
+            source: objectName,
+            orginTime: null
+          }
+
+          // 判断文件名是否正确的日期
+          const time = new Date(parseInt(basename.split('__')[1].replace(/\.\w+$/, ''))).getTime()
+
+          if (time) {
+            tag.orginTime = time
+          }
+
+          await this.ssoService.pubObjectTag(bucketName, thumbName, tag)
 
           // 删除文件
           await fs.rm(output)

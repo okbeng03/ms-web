@@ -59,12 +59,6 @@ export class SsoService {
 
           obj.thumb = '/sso/' + path.join(bucket.name, obj.name)
           obj.source = '/sso/' + path.join(NO_GROUP_BUCKET, obj.tags?.source)
-
-          const time = new Date(parseInt(name.split('__')[1].replace(/\.\w+$/, ''))).getTime()
-
-          if (time) {
-            obj.orginTime = time
-          }
         })
       }
 
