@@ -57,8 +57,8 @@ export class SsoService {
         bucket.objects?.forEach(obj => {
           const name = path.basename(obj.name)
 
-          obj.thumb = '/sso/' + path.join(bucket.name, THUMB_DIR, name)
-          obj.source = '/sso/' + path.join(bucket.name, obj.name)
+          obj.thumb = '/sso/' + path.join(bucket.name, obj.name)
+          obj.source = '/sso/' + path.join(NO_GROUP_BUCKET, obj.tags?.source)
 
           const time = new Date(name.split('__')[1]).getTime()
 
@@ -82,7 +82,7 @@ export class SsoService {
 
       for (const bucket of buckets) {
         try {
-          const objects = await this.listObjects(bucket.name, 'source', true)
+          const objects = await this.listObjects(bucket.name, 'thumb', true)
           bucket.objects = objects
           // 通过tag增加描述功能
           let tags = await this.minioClient.getBucketTagging(bucket.name)
@@ -176,14 +176,14 @@ export class SsoService {
   // 复制相册，同时要复制缩略图
   async copyPhoto(bucketName: string, oldBucketName: string, basename: string, removeSource?: boolean) {
     try {
-      const sourceName = path.join(SOURCE_DIR, basename)
+      // const sourceName = path.join(SOURCE_DIR, basename)
       const thumbName = path.join(THUMB_DIR, basename)
 
-      await this.copyObject(bucketName, sourceName, path.join(oldBucketName, sourceName))
+      // await this.copyObject(bucketName, sourceName, path.join(oldBucketName, sourceName))
       await this.copyObject(bucketName, thumbName, path.join(oldBucketName, thumbName))
 
       if (removeSource) {
-        await this.removeObject(bucketName, sourceName)
+        // await this.removeObject(bucketName, sourceName)
         await this.removeObject(bucketName, thumbName)
       }
 
@@ -353,5 +353,13 @@ export class SsoService {
         reject(err)
       }
     })
+  }
+
+  async pubObjectTag(bucketName: string, objectName: string, tags) {
+    try {
+      await this.minioClient.setObjectTagging(bucketName, objectName, tags)
+    } catch (err) {
+      throw err
+    }
   }
 }

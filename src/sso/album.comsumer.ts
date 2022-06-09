@@ -87,7 +87,7 @@ export class AlbumConsumer {
       }
 
       // 删除原分桶文件
-      await this.ssoService.removeObject(bucketName, objectName)
+      // await this.ssoService.removeObject(bucketName, objectName)
       await this.ssoService.removeObject(bucketName, minObjectName)
       await this.ssoService.removeObject(bucketName, thumbName)
 
@@ -123,6 +123,11 @@ export class AlbumConsumer {
           const stream = fd.createReadStream()
 
           await this.ssoService.putObject(bucketName, thumbName, stream)
+
+          // 添加tag指向源文件
+          await this.ssoService.pubObjectTag(bucketName, thumbName, {
+            source: objectName
+          })
 
           // 删除文件
           await fs.rm(output)
