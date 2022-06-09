@@ -90,4 +90,14 @@ export class SsoController {
       throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
     }
   }
+
+  // 重新识别
+  @Post('reRecognition')
+  async reRecognition(@Body() body: {bucketName: string, objects}) {
+    try {
+      await this.ssoService.reRecognition(body.bucketName, body.objects)
+    } catch(err) {
+      throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
+    }
+  }
 }

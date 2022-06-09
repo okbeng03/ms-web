@@ -359,9 +359,36 @@ export class SsoService {
     })
   }
 
+  // add object tag
   async pubObjectTag(bucketName: string, objectName: string, tags) {
     try {
       await this.minioClient.setObjectTagging(bucketName, objectName, tags)
+    } catch (err) {
+      throw err
+    }
+  }
+
+  // 重新识别
+  async reRecognition(bucketName, objects) {
+    try {
+      for (const obj of objects) {
+        const name = path.basename(obj.name)
+        const sourcePath = path.join(SOURCE_DIR, name)
+        const minPath = path.join(MIN_DIR, name)
+
+        // 人脸识别队列
+        await this.albumQueue.add('recognition', {
+          bucketName: bucketName,
+          basename: name,
+          objectName: sourcePath,
+          minObjectName: minPath,
+          thumbName: obj.name,
+          sourcePath: null,
+          removeSource: false
+        }, {
+          delay: 1000
+        })
+      }
     } catch (err) {
       throw err
     }
