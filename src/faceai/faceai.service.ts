@@ -23,9 +23,17 @@ export class FaceaiService {
     this.subjects = recognitionService.getSubjects()
   }
 
-  async addSuject(subject: string) {
+  async subjectList() {
     try {
-      return this.subjects.add(subject)
+      return await this.subjects.list()
+    } catch (err) {
+      throw err
+    }
+  }
+
+  async addSubject(subject: string) {
+    try {
+      return await this.subjects.add(subject)
     } catch (err) {
       throw err
     }

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
 import { FaceaiService } from './faceai.service';
 
 @Controller('api/faceai')
@@ -8,7 +8,7 @@ export class FaceaiController {
   @Post('addSubject')
   async addSubject(@Body() subject: {name: string}) {
     try {
-      await this.faceaiService.addSuject(subject.name)
+      return await this.faceaiService.addSubject(subject.name)
     } catch(err) {
       throw new HttpException(err?.response?.data.message || err.message, HttpStatus.EXPECTATION_FAILED)
     }
@@ -17,7 +17,16 @@ export class FaceaiController {
   @Post('addCollection')
   async addCollection(@Body() collection: {image: string, subject: string}) {
     try {
-      await this.faceaiService.addCollection(collection.image, collection.subject)
+      return await this.faceaiService.addCollection(collection.image, collection.subject)
+    } catch(err) {
+      throw new HttpException(err?.response?.data.message || err.message, HttpStatus.EXPECTATION_FAILED)
+    }
+  }
+
+  @Get('subjects')
+  async subjects() {
+    try {
+      return await this.faceaiService.subjectList()
     } catch(err) {
       throw new HttpException(err?.response?.data.message || err.message, HttpStatus.EXPECTATION_FAILED)
     }
