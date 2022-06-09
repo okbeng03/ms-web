@@ -100,4 +100,14 @@ export class SsoController {
       throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
     }
   }
+
+  // 相册编辑
+  @Post('update')
+  async update(@Body() body) {
+    try {
+      return await this.ssoService.update(body)
+    } catch(err) {
+      throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
+    }
+  }
 }

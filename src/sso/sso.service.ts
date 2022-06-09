@@ -4,7 +4,7 @@ import { Injectable, Inject, CACHE_MANAGER } from '@nestjs/common'
 import { Queue } from 'bull'
 import { Cache } from 'cache-manager'
 import { InjectQueue } from '@nestjs/bull'
-import { remove } from 'lodash'
+import { remove, pick } from 'lodash'
 import { MINIO_CLIENT, SOURCE_DIR, MIN_DIR, THUMB_DIR, NO_GROUP_BUCKET, OTHERS_BUCKET, CACHE_BUCKETS } from 'src/constants'
 const walker = require('folder-walker')
 import { isImageFile } from 'src/lib/util'
@@ -384,6 +384,44 @@ export class SsoService {
         })
       }
     } catch (err) {
+      throw err
+    }
+  }
+
+  // 编辑相册
+  async update(data) {
+    try {
+      const { bucketName, values } = data
+      const tagging = {}
+
+      // 处理保留值
+      let tags = await this.minioClient.getBucketTagging(bucketName)
+
+      if (tags) {
+        if (Array.isArray(tags[0])) {
+          tags = tags[0]
+        }
+
+        tags.forEach(item => {
+          tagging[item.Key] = item.Value
+        })
+      }
+
+      const inheritValues = pick(tagging, ['type'])
+
+      await this.minioClient.removeBucketTagging(bucketName)
+      await this.minioClient.setBucketTagging(bucketName, {
+        ...values,
+        ...inheritValues
+      })
+
+      return true
+
+      
+
+      // 比较新老值，新有老无-新增，新无老有-移除，新老不一致-移除再新增
+    } catch (err) {
+      console.log('update error::', err)
       throw err
     }
   }
