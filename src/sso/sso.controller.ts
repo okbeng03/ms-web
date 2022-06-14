@@ -75,10 +75,24 @@ export class SsoController {
     }
   }
 
-  // 移动目录
+  // 复制
   @Post('copy')
-  async copyPhoto() {
+  async copyObjects(@Body() body: {bucketName: string, list: Array<string>, newBucketName: string}) {
+    try {
+      await this.ssoService.copyObjects(body.bucketName, body.list, body.newBucketName)
+    } catch(err) {
+      throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
+    }
+  }
 
+  // 移动
+  @Post('move')
+  async moveObjects(@Body() body: {bucketName: string, list: Array<string>, newBucketName: string}) {
+    try {
+      await this.ssoService.copyObjects(body.bucketName, body.list, body.newBucketName, true)
+    } catch(err) {
+      throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
+    }
   }
 
   // 同步相片

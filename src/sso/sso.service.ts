@@ -156,7 +156,8 @@ export class SsoService {
     }
   }
 
-  async copyObject(bucketName: string, objectName: string, sourceObject: string) {
+  // 复制
+  async copyObject(bucketName: string, objectName: string, sourceObject: string, removeSource?: boolean) {
     try {
       // 先判断分桶是否存在，不存在就创建分桶
       const exists = await this.minioClient.bucketExists(bucketName)
@@ -165,28 +166,48 @@ export class SsoService {
         await this.minioClient.makeBucket(bucketName)
       }
 
-      return await this.minioClient.copyObject(bucketName, objectName, sourceObject)
+      await this.minioClient.copyObject(bucketName, objectName, sourceObject)
+
+      if (removeSource) {
+        const source = sourceObject.split('/')
+        await this.removeObject(source.shift(), source.join('/'))
+      }
+
+      return true
     } catch(err) {
       throw err
     }
   }
 
-  // 复制相册，同时要复制缩略图
-  async copyPhoto(bucketName: string, oldBucketName: string, basename: string, removeSource?: boolean) {
+  // 复制
+  // async copyPhoto(bucketName: string, oldBucketName: string, basename: string, removeSource?: boolean) {
+  //   try {
+  //     // const sourceName = path.join(SOURCE_DIR, basename)
+  //     const thumbName = path.join(THUMB_DIR, basename)
+
+  //     // await this.copyObject(bucketName, sourceName, path.join(oldBucketName, sourceName))
+  //     await this.copyObject(bucketName, thumbName, path.join(oldBucketName, thumbName))
+
+  //     if (removeSource) {
+  //       // await this.removeObject(bucketName, sourceName)
+  //       await this.removeObject(bucketName, thumbName)
+  //     }
+
+  //     return
+  //   } catch(err) {
+  //     throw err
+  //   }
+  // }
+
+  // 批量复制
+  async copyObjects(bucketName: string, list: Array<string>, newBucketName: string, removeSource?: boolean) {
     try {
-      // const sourceName = path.join(SOURCE_DIR, basename)
-      const thumbName = path.join(THUMB_DIR, basename)
-
-      // await this.copyObject(bucketName, sourceName, path.join(oldBucketName, sourceName))
-      await this.copyObject(bucketName, thumbName, path.join(oldBucketName, thumbName))
-
-      if (removeSource) {
-        // await this.removeObject(bucketName, sourceName)
-        await this.removeObject(bucketName, thumbName)
+      for (const item of list) {
+        await this.copyObject(newBucketName, item, path.join(bucketName, item), removeSource)
       }
 
-      return
-    } catch(err) {
+      return true
+    } catch (err) {
       throw err
     }
   }
