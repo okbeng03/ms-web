@@ -73,17 +73,17 @@ export class AlbumConsumer {
 
         if (recoginitionList.length !== list.length) {
           const newBucketName = NEED_RECOGNITION_BUCKET
-          await this.ssoService.copyPhoto(newBucketName, bucketName, basename)
+          await this.ssoService.copyObject(newBucketName, thumbName, path.join(bucketName, thumbName))
           await this.ssoService.copyObject(newBucketName, minObjectName, path.join(bucketName, minObjectName))
         }
 
         for (const subject of recoginitionList) {
           const newBucketName = `${BUCKET_PREFIX}-${subject.subject.toLocaleLowerCase()}`
-          await this.ssoService.copyPhoto(newBucketName, bucketName, basename)
+          await this.ssoService.copyObject(newBucketName, thumbName, path.join(bucketName, thumbName))
         }
       } else {
         const newBucketName = OTHER_BUCKET
-        await this.ssoService.copyPhoto(newBucketName, bucketName, basename)
+        await this.ssoService.copyObject(newBucketName, thumbName, path.join(bucketName, thumbName))
       }
 
       // 删除原分桶文件
