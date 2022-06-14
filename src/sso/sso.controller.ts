@@ -38,21 +38,11 @@ export class SsoController {
     }
   }
 
-  // 移除单张相片
-  @Post('remove')
-  async removeObject(@Body() objectDto: {bucketName: string, objectName: string}) {
-    try {
-      await this.minioClient.removeObject(objectDto.bucketName, objectDto.objectName)
-    } catch(err) {
-      throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
-    }
-  }
-
   // 批量移除相片
-  @Post('removes')
+  @Post('remove')
   async removeObjects(@Body() objectDto: {bucketName: string, objectsList: Array<string>}) {
     try {
-      await this.minioClient.removeObjects(objectDto.bucketName, objectDto.objectsList)
+      await this.ssoService.removeObjects(objectDto.bucketName, objectDto.objectsList)
     } catch(err) {
       throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
     }

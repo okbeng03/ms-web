@@ -7,7 +7,7 @@ import { InjectQueue } from '@nestjs/bull'
 import { remove, pick } from 'lodash'
 import { MINIO_CLIENT, SOURCE_DIR, MIN_DIR, THUMB_DIR, NO_GROUP_BUCKET, OTHERS_BUCKET, CACHE_BUCKETS } from 'src/constants'
 const walker = require('folder-walker')
-import { isImageFile } from 'src/lib/util'
+import { isImageFile, parseTagging } from 'src/lib/util'
 
 @Injectable()
 export class SsoService {
@@ -79,20 +79,9 @@ export class SsoService {
           const objects = await this.listObjects(bucket.name, 'thumb', true)
           bucket.objects = objects
           // 通过tag增加描述功能
-          let tags = await this.minioClient.getBucketTagging(bucket.name)
+          const tags = await this.minioClient.getBucketTagging(bucket.name)
 
-          if (tags) {
-            if (Array.isArray(tags[0])) {
-              tags = tags[0]
-            }
-
-            const tagging = {}
-            tags.forEach(item => {
-              tagging[item.Key] = item.Value
-            })
-
-            bucket.tags = tagging
-          }
+          bucket.tags = parseTagging(tags)
         } catch (err) {}
       }
 
@@ -122,20 +111,8 @@ export class SsoService {
         for (const obj of data) {
           try {
             // 通过tag增加描述功能
-            let tags = await this.minioClient.getObjectTagging(bucketName, obj.name)
-            
-            if (tags) {
-              if (Array.isArray(tags[0])) {
-                tags = tags[0]
-              }
-
-              const tagging = {}
-              tags.forEach(item => {
-                tagging[item.Key] = item.Value
-              })
-  
-              obj.tags = tagging
-            }
+            const tags = await this.minioClient.getObjectTagging(bucketName, obj.name)
+            obj.tags = parseTagging(tags)
           } catch (err) {}
         }
 
@@ -179,31 +156,49 @@ export class SsoService {
     }
   }
 
-  // 复制
-  // async copyPhoto(bucketName: string, oldBucketName: string, basename: string, removeSource?: boolean) {
-  //   try {
-  //     // const sourceName = path.join(SOURCE_DIR, basename)
-  //     const thumbName = path.join(THUMB_DIR, basename)
+  // 复制相片
+  async copyPhoto(bucketName: string, objectName: string, sourceObject: string, removeSource?: boolean) {
+    try {
+      // 复制之后记录下source新增相册，后期移除的时候才能知道什么时候清除source
+      await this.copyObject(bucketName, objectName, sourceObject, removeSource)
 
-  //     // await this.copyObject(bucketName, sourceName, path.join(oldBucketName, sourceName))
-  //     await this.copyObject(bucketName, thumbName, path.join(oldBucketName, thumbName))
+      const source = 'source/' + path.basename(objectName)
+      const tags = await this.minioClient.getObjectTagging(NO_GROUP_BUCKET, source)
+      const tagging: any = parseTagging(tags)
+      const refs = tagging.refs ? tagging.refs.split(',') : []
 
-  //     if (removeSource) {
-  //       // await this.removeObject(bucketName, sourceName)
-  //       await this.removeObject(bucketName, thumbName)
-  //     }
+      const newObject = path.join(bucketName, objectName)
+      const nIdx = refs.findIndex(item => item === newObject)
 
-  //     return
-  //   } catch(err) {
-  //     throw err
-  //   }
-  // }
+      if (nIdx < 0) {
+        refs.push(newObject)
+      }
+
+      if (removeSource) {
+        // 删除源文件，要把源文件的ref去掉
+        const sIdx = refs.findIndex(item => item === sourceObject)
+
+        if (sIdx > -1) {
+          refs.splice(sIdx, 1)
+        }
+      }
+
+      await this.pubObjectTag(NO_GROUP_BUCKET, source, {
+        ...tagging,
+        refs: refs.join(',')
+      })
+
+      return true
+    } catch(err) {
+      throw err
+    }
+  }
 
   // 批量复制
   async copyObjects(bucketName: string, list: Array<string>, newBucketName: string, removeSource?: boolean) {
     try {
       for (const item of list) {
-        await this.copyObject(newBucketName, item, path.join(bucketName, item), removeSource)
+        await this.copyPhoto(newBucketName, item, path.join(bucketName, item), removeSource)
       }
 
       return true
@@ -212,9 +207,42 @@ export class SsoService {
     }
   }
 
+  // 删除
   async removeObject(bucketName: string, objectName: string) {
     try {
       return await this.minioClient.removeObject(bucketName, objectName)
+    } catch(err) {
+      throw err
+    }
+  }
+
+  // 批量删除
+  async removeObjects(bucketName: string, objectsList: Array<string>) {
+    try {
+      for (const objectName of objectsList) {
+        await this.removeObject(bucketName, objectName)
+
+        // 删除完后，清除tags.refs
+        const source = 'source/' + path.basename(objectName)
+        const tags = await this.minioClient.getObjectTagging(NO_GROUP_BUCKET, source)
+        const tagging: any = parseTagging(tags)
+        const refs = tagging.refs ? tagging.refs.split(',') : []
+        const idx = refs.findIndex(item => item === bucketName + '/' + objectName)
+
+        if (idx > -1) {
+          refs.splice(idx, 1)
+        }
+
+        // 清除完tags.refs，清除source文件
+        if (!refs.length) {
+          await this.removeObject(NO_GROUP_BUCKET, source)
+        } else {
+          await this.pubObjectTag(NO_GROUP_BUCKET, source, {
+            ...tagging,
+            refs: refs.join(',')
+          })
+        }
+      }
     } catch(err) {
       throw err
     }
@@ -413,21 +441,10 @@ export class SsoService {
   async update(data) {
     try {
       const { bucketName, values } = data
-      const tagging = {}
 
       // 处理保留值
-      let tags = await this.minioClient.getBucketTagging(bucketName)
-
-      if (tags) {
-        if (Array.isArray(tags[0])) {
-          tags = tags[0]
-        }
-
-        tags.forEach(item => {
-          tagging[item.Key] = item.Value
-        })
-      }
-
+      const tags = await this.minioClient.getBucketTagging(bucketName)
+      const tagging = parseTagging(tags)
       const inheritValues = pick(tagging, ['type'])
 
       await this.minioClient.removeBucketTagging(bucketName)
@@ -437,10 +454,6 @@ export class SsoService {
       })
 
       return true
-
-      
-
-      // 比较新老值，新有老无-新增，新无老有-移除，新老不一致-移除再新增
     } catch (err) {
       console.log('update error::', err)
       throw err
