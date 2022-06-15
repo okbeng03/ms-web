@@ -287,7 +287,7 @@ export class SsoService {
           objectName: sourcePath,
           thumbName: thumbPath
         }, {
-          delay: 2000
+          delay: 1000
         })
 
         // 人脸识别队列
@@ -299,7 +299,7 @@ export class SsoService {
           sourcePath: file.filepath || null,
           removeSource: file.removeSource || false
         }, {
-          delay: 10000
+          delay: 3000
         })
       } else {
         await this.putObject(OTHERS_BUCKET, basename, stream)

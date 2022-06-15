@@ -53,6 +53,7 @@ export class FaceaiService {
           await fs.rm(filepath)
           resolve(null)
         } catch(err) {
+          await fs.rm(filepath)
           reject(err)
         }
       })
