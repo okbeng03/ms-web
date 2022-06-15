@@ -175,7 +175,7 @@ export class SsoService {
       // 复制之后记录下source新增相册，后期移除的时候才能知道什么时候清除source
       await this.copyObject(bucketName, objectName, sourceObject, removeSource)
 
-      const source = 'source/' + path.basename(objectName)
+      const source = path.join(SOURCE_DIR, path.basename(objectName))
       const tags = await this.minioClient.getObjectTagging(NO_GROUP_BUCKET, source)
       const tagging: any = parseTagging(tags)
       const refs = tagging.refs ? tagging.refs.split(',') : []
@@ -196,13 +196,13 @@ export class SsoService {
         }
       }
 
-      await this.pubObjectTag(NO_GROUP_BUCKET, source, {
-        ...tagging,
+      await this.pubObjectTagging(NO_GROUP_BUCKET, source, {
         refs: refs.join(',')
       })
 
       return true
     } catch(err) {
+      console.log('copyPhoto error:: ', err)
       throw err
     }
   }
@@ -236,7 +236,7 @@ export class SsoService {
         await this.removeObject(bucketName, objectName)
 
         // 删除完后，清除tags.refs
-        const source = 'source/' + path.basename(objectName)
+        const source = path.join(SOURCE_DIR, path.basename(objectName))
         const tags = await this.minioClient.getObjectTagging(NO_GROUP_BUCKET, source)
         const tagging: any = parseTagging(tags)
         const refs = tagging.refs ? tagging.refs.split(',') : []
@@ -250,8 +250,7 @@ export class SsoService {
         if (!refs.length) {
           await this.removeObject(NO_GROUP_BUCKET, source)
         } else {
-          await this.pubObjectTag(NO_GROUP_BUCKET, source, {
-            ...tagging,
+          await this.pubObjectTagging(NO_GROUP_BUCKET, source, {
             refs: refs.join(',')
           })
         }
@@ -296,7 +295,6 @@ export class SsoService {
           bucketName: NO_GROUP_BUCKET,
           basename: name,
           objectName: sourcePath,
-          minObjectName: minPath,
           thumbName: thumbPath,
           sourcePath: file.filepath || null,
           removeSource: file.removeSource || false
@@ -368,10 +366,28 @@ export class SsoService {
     })
   }
 
-  // add object tag
-  async pubObjectTag(bucketName: string, objectName: string, tags) {
+  async getObjectTagging(bucketName: string, objectName: string) {
     try {
-      await this.minioClient.setObjectTagging(bucketName, objectName, tags)
+      const tags = await this.minioClient.getObjectTagging(bucketName, objectName)
+      const tagging = parseTagging(tags)
+
+      return tagging
+    } catch (err) {
+      throw err
+    }
+  }
+
+  // add object tag
+  async pubObjectTagging(bucketName: string, objectName: string, tags) {
+    try {
+      const source = path.join(SOURCE_DIR, path.basename(objectName))
+      const tag = await this.minioClient.getObjectTagging(NO_GROUP_BUCKET, source)
+      const tagging: any = parseTagging(tag)
+
+      await this.minioClient.setObjectTagging(bucketName, objectName, {
+        ...tagging,
+        ...tags
+      })
     } catch (err) {
       throw err
     }
@@ -382,23 +398,23 @@ export class SsoService {
     try {
       for (const obj of objects) {
         const name = path.basename(obj.name)
-        const sourcePath = path.join(SOURCE_DIR, name)
-        const minPath = path.join(MIN_DIR, name)
+        const sourceName = path.join(SOURCE_DIR, name)
 
         // 人脸识别队列
         await this.albumQueue.add('recognition', {
           bucketName: bucketName,
           basename: name,
-          objectName: sourcePath,
-          minObjectName: minPath,
+          objectName: sourceName,
           thumbName: obj.name,
           sourcePath: null,
-          removeSource: false
+          removeSource: false,
+          reRecognition: true
         }, {
           delay: 1000
         })
       }
     } catch (err) {
+      console.log('reRecognition error::', err)
       throw err
     }
   }

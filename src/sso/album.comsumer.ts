@@ -7,7 +7,7 @@ const gm = require('gm')
 import { imagemin } from 'src/lib/imagemin'
 import { SsoService } from './sso.service'
 import { FaceaiService } from 'src/faceai/faceai.service'
-import { NEED_RECOGNITION_BUCKET, BUCKET_PREFIX, OTHER_BUCKET } from 'src/constants'
+import { NEED_RECOGNITION_BUCKET, BUCKET_PREFIX, OTHER_BUCKET, NO_GROUP_BUCKET } from 'src/constants'
 
 @Processor('album')
 export class AlbumConsumer {
@@ -31,7 +31,7 @@ export class AlbumConsumer {
       // 判断图片小于1M就不压缩，直接同步到压缩文件夹
       const stat = await fs.stat(filepath)
 
-      if (stat.size >= 1000000) {
+      if (stat.size >= 5000000) {
         await imagemin(filepath, imageminRoot)
         job.progress(50)
         
@@ -41,6 +41,9 @@ export class AlbumConsumer {
         const stream = fd.createReadStream()
 
         await this.ssoService.putObject(bucketName, minObjectName, stream)
+        await this.ssoService.pubObjectTagging(bucketName, objectName, {
+          mini: minObjectName
+        })
         job.progress(90)
 
         // 删除文件
@@ -48,8 +51,7 @@ export class AlbumConsumer {
         job.progress(100)
         console.log('imagemin success:: ', objectName)
       } else {
-        await this.ssoService.copyObject(bucketName, minObjectName, path.join(bucketName, objectName))
-        console.log('copy success:: ', objectName)
+        console.log('no need imagemin:: ', objectName)
       }
     } catch (err) {
       console.log('imagemin error:: ', err)
@@ -61,25 +63,30 @@ export class AlbumConsumer {
   async recognition(job: Job) {
     try {
       const { root } = this
-      const { bucketName, basename, objectName, minObjectName, thumbName, sourcePath, removeSource } = job.data
-      const filepath = path.join(root, bucketName, minObjectName)
+      const { bucketName, basename, objectName, minObjectName, thumbName, sourcePath, removeSource, reRecognition = false } = job.data
+      
+      const tagging: any = await this.ssoService.getObjectTagging(NO_GROUP_BUCKET, objectName)
+      const filepath = path.join(root, NO_GROUP_BUCKET, tagging.mini || objectName)
       const fd = await fs.open(filepath, 'r')
       const stream = fd.createReadStream()
       const { recognition, list = [] } = await this.faceaiService.recognize(stream)
 
       if (recognition) {
-        // 存在未识别，分到还需识别分组
         const recoginitionList = list.filter(item => item.isRecognition)
 
-        if (recoginitionList.length !== list.length) {
+        if (!reRecognition && recoginitionList.length !== list.length) {
           const newBucketName = NEED_RECOGNITION_BUCKET
           await this.ssoService.copyPhoto(newBucketName, thumbName, path.join(bucketName, thumbName))
-          await this.ssoService.copyObject(newBucketName, minObjectName, path.join(bucketName, minObjectName))
         }
 
         for (const subject of recoginitionList) {
           const newBucketName = `${BUCKET_PREFIX}-${subject.subject.toLocaleLowerCase()}`
           await this.ssoService.copyPhoto(newBucketName, thumbName, path.join(bucketName, thumbName))
+        }
+
+        if (reRecognition && recoginitionList.length !== list.length) {
+          console.log('recoginition success:: ', objectName)
+          return
         }
       } else {
         const newBucketName = OTHER_BUCKET
@@ -87,8 +94,6 @@ export class AlbumConsumer {
       }
 
       // 删除原分桶文件
-      // await this.ssoService.removeObject(bucketName, objectName)
-      await this.ssoService.removeObject(bucketName, minObjectName)
       await this.ssoService.removeObject(bucketName, thumbName)
 
       // 删除原始文件
@@ -125,19 +130,19 @@ export class AlbumConsumer {
           await this.ssoService.putObject(bucketName, thumbName, stream)
 
           // 添加tag指向源文件
-          const tag = {
-            source: objectName,
-            orginTime: null
+          const tag: any = {
+            source: objectName
           }
 
           // 判断文件名是否正确的日期
+          // TODO:: 用parseInt会导致只截取部分字符串前面部分数字，不合理
           const time = new Date(parseInt(basename.split('__')[1].replace(/\.\w+$/, ''))).getTime()
 
           if (time) {
             tag.orginTime = time
           }
 
-          await this.ssoService.pubObjectTag(bucketName, thumbName, tag)
+          await this.ssoService.pubObjectTagging(bucketName, thumbName, tag)
 
           // 删除文件
           await fs.rm(output)
