@@ -135,8 +135,7 @@ export class AlbumConsumer {
           }
 
           // 判断文件名是否正确的日期
-          // TODO:: 用parseInt会导致只截取部分字符串前面部分数字，不合理
-          const time = new Date(parseInt(basename.split('__')[1].replace(/\.\w+$/, ''))).getTime()
+          const time = new Date(basename.split('__')[1].replace(/\.\w+$/, '') - 0).getTime()
 
           if (time) {
             tag.orginTime = time
