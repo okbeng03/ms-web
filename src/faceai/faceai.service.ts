@@ -73,6 +73,13 @@ export class FaceaiService {
       result.forEach(({box, subjects}) => {
         // 认为是人像
         if (box.probability >= 0.9) {
+          if (!subjects.length) {
+            list.push({
+              isRecognition: false
+            })
+            return
+          }
+
           subjects.sort((a, b) => {
             return a.similarity - b.similarity
           })
