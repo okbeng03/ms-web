@@ -148,4 +148,18 @@ export class AlbumConsumer {
       console.log('thumbnail error::', job.data.objectName, err)
     }
   }
+
+  @Process('download')
+  async download(job: Job) {
+    try {
+      const { filePath } = job.data
+
+      // 删除文件
+      await fs.rm(filePath)
+
+      console.log('download file remove success::', filePath)
+    } catch (err) {
+      console.log('download error::', job.data, err)
+    }
+  }
 }

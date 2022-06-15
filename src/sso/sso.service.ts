@@ -1,6 +1,8 @@
 import * as fs from 'fs/promises'
+import { createWriteStream, createReadStream } from 'fs'
 const path = require('path')
 import { Injectable, Inject, CACHE_MANAGER } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { Queue } from 'bull'
 import { Cache } from 'cache-manager'
 import { InjectQueue } from '@nestjs/bull'
@@ -8,10 +10,21 @@ import { remove, pick } from 'lodash'
 import { MINIO_CLIENT, SOURCE_DIR, MIN_DIR, THUMB_DIR, NO_GROUP_BUCKET, OTHERS_BUCKET, CACHE_BUCKETS } from 'src/constants'
 const walker = require('folder-walker')
 import { isImageFile, parseTagging } from 'src/lib/util'
-
+const archiver = require('archiver')
 @Injectable()
 export class SsoService {
-  constructor(@Inject(MINIO_CLIENT) private readonly minioClient, @InjectQueue('album') private albumQueue: Queue, @Inject(CACHE_MANAGER) private cacheManager: Cache) {}
+  private root
+  private downloadRoot
+
+  constructor(
+    @Inject(MINIO_CLIENT) private readonly minioClient,
+    @InjectQueue('album') private albumQueue: Queue,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private configService: ConfigService
+  ) {
+    this.root = configService.get<string>('MINIO_SERVER_ROOT')
+    this.downloadRoot = configService.get<string>('DOWNLOAD_DIR')
+  }
 
   // 获取相册列表
   async getBuckets() {
@@ -338,53 +351,6 @@ export class SsoService {
               }
 
               await this.upload(file)
-
-              // if (isImageFile(filepath)) {
-              //   // 图片上传
-              //   const name = new Date().getTime() + '__' + basename
-              //   const sourcePath = path.join(SOURCE_DIR, name)
-              //   const minPath = path.join(MIN_DIR, name)
-              //   const thumbPath = path.join(THUMB_DIR, name)
-              //   await this.putObject(NO_GROUP_BUCKET, sourcePath, stream)
-
-              //   // 压缩队列
-              //   await this.albumQueue.add('imagemin', {
-              //     bucketName: NO_GROUP_BUCKET,
-              //     basename: name,
-              //     objectName: sourcePath,
-              //     minObjectName: minPath
-              //   })
-
-              //   // 缩略图队列
-              //   await this.albumQueue.add('thumbnail', {
-              //     bucketName: NO_GROUP_BUCKET,
-              //     basename: name,
-              //     objectName: sourcePath,
-              //     thumbName: thumbPath
-              //   }, {
-              //     delay: 2000
-              //   })
-
-              //   // 人脸识别队列
-              //   await this.albumQueue.add('recognition', {
-              //     bucketName: NO_GROUP_BUCKET,
-              //     basename: name,
-              //     objectName: sourcePath,
-              //     minObjectName: minPath,
-              //     thumbName: thumbPath,
-              //     sourcePath: filepath,
-              //     removeSource: syncDto.removeSource
-              //   }, {
-              //     delay: 10000
-              //   })
-              // } else {
-              //   await this.putObject(OTHERS_BUCKET, basename, stream)
-
-              //   // 删除源文件
-              //   if (syncDto.removeSource) {
-              //     await fs.rm(filepath)
-              //   }
-              // }
             } catch (err) {
               reject(err)
             }
@@ -458,5 +424,52 @@ export class SsoService {
       console.log('update error::', err)
       throw err
     }
+  }
+
+  // 批量下载::打包下载
+  download(bucketName: string, list: Array<string>): Promise<string> {
+    return new Promise((resolve, reject) => {
+      try {
+        const { root, downloadRoot } = this
+        const filePath = path.join(downloadRoot, `${new Date().getTime()}.zip`)
+        const output = createWriteStream(filePath)
+        const archive = archiver('zip', {
+          zlib: { level: 9 }
+        })
+
+        output.on('close', async () => {
+          // 删除队列
+          await this.albumQueue.add('download', {
+            filePath
+          }, {
+            delay: 24 * 60 * 60 * 1000
+          })
+          
+          resolve(filePath)
+        })
+
+        archive.on('warning', function(err) {
+          console.log('archive warning::', err)
+          reject(err)
+        })
+        
+        archive.on('error', function(err) {
+          console.log('archive eror::', err)
+          reject(err)
+        })
+
+        archive.pipe(output)
+
+        for (const objectName of list) {
+          const basename = path.basename(objectName)
+          archive.append(createReadStream(path.join(root, NO_GROUP_BUCKET, SOURCE_DIR, basename)), { name: basename })
+        }
+
+        archive.finalize()
+      } catch (err) {
+        console.log('download error::', err)
+        reject(err)
+      }
+    })
   }
 }

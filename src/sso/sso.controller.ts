@@ -1,4 +1,5 @@
-import { Inject, Controller, Post, Body, HttpException, HttpStatus, Get, Param, UploadedFile, UseInterceptors } from '@nestjs/common'
+import { createReadStream } from 'fs'
+import { Inject, Controller, Post, Body, HttpException, HttpStatus, Get, Param, UploadedFile, UseInterceptors, StreamableFile } from '@nestjs/common'
 import { Express } from 'express'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { MINIO_CLIENT } from 'src/constants'
@@ -111,6 +112,20 @@ export class SsoController {
     try {
       return await this.ssoService.update(body)
     } catch(err) {
+      throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
+    }
+  }
+
+  // 批量下载
+  @Post('download')
+  async download(@Body() body: {bucketName: string, list: Array<string>}): Promise<StreamableFile> {
+    try {
+      const filePath = await this.ssoService.download(body.bucketName, body.list)
+      const file = createReadStream(filePath)
+
+      return new StreamableFile(file)
+    } catch(err) {
+      console.log(222, err)
       throw new HttpException(err.message, HttpStatus.EXPECTATION_FAILED)
     }
   }
