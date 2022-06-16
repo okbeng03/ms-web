@@ -11,6 +11,9 @@ import { MINIO_CLIENT, SOURCE_DIR, MIN_DIR, THUMB_DIR, NO_GROUP_BUCKET, OTHERS_B
 const walker = require('folder-walker')
 import { isImageFile, isVideoFile, parseTagging } from 'src/lib/util'
 const archiver = require('archiver')
+import * as moment from 'moment'
+
+const regQQ = /^(\d{4}_\d{4}-\d{2}-\d{2})_\S+(\.\w+)$/
 @Injectable()
 export class SsoService {
   private root
@@ -280,7 +283,16 @@ export class SsoService {
   // 上传文件
   async upload(file) {
     try {
-      const { originalname: basename, mimetype, buffer: stream } = file
+      // const { originalname: basename, mimetype, buffer: stream } = file
+      const { originalname, mimetype, buffer: stream } = file
+      const match = originalname.match(regQQ)
+      let basename
+
+      if (match) {
+        basename = moment(match[1], 'HHmm_YYYY-MM-DD').valueOf() + match[2]
+      } else {
+        basename = originalname
+      }
 
       if (isImageFile(mimetype)) {
         // 图片上传
