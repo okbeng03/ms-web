@@ -34,7 +34,6 @@
     "bull": "^4.8.3",
     "cache-manager": "^4.0.1",
     "cache-manager-redis-store": "^2.0.0",
-    "dayjs": "^1.11.2",
     "fluent-ffmpeg": "^2.1.2",
     "folder-walker": "^3.2.0",
     "gm": "^1.23.1",
@@ -45,6 +44,7 @@
     "imagemin-svgo": "9.0.0",
     "lodash": "^4.17.21",
     "minio": "^7.0.28",
+    "moment": "^2.29.3",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
     "rxjs": "^7.2.0"
