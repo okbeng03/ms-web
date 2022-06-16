@@ -6,6 +6,7 @@ export const NO_GROUP_BUCKET = `${BUCKET_PREFIX}-nogroup`
 export const OTHERS_BUCKET = 'others'
 export const NEED_RECOGNITION_BUCKET = `${BUCKET_PREFIX}-needrecognition`
 export const OTHER_BUCKET = `${BUCKET_PREFIX}-other`
+export const VIDEO_BUCKET = `${BUCKET_PREFIX}-video`
 
 // 分桶路径
 export const SOURCE_DIR = 'source' // 源路径

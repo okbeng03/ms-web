@@ -7,9 +7,9 @@ import { Queue } from 'bull'
 import { Cache } from 'cache-manager'
 import { InjectQueue } from '@nestjs/bull'
 import { remove, pick } from 'lodash'
-import { MINIO_CLIENT, SOURCE_DIR, MIN_DIR, THUMB_DIR, NO_GROUP_BUCKET, OTHERS_BUCKET, CACHE_BUCKETS } from 'src/constants'
+import { MINIO_CLIENT, SOURCE_DIR, MIN_DIR, THUMB_DIR, NO_GROUP_BUCKET, OTHERS_BUCKET, CACHE_BUCKETS, VIDEO_BUCKET } from 'src/constants'
 const walker = require('folder-walker')
-import { isImageFile, parseTagging } from 'src/lib/util'
+import { isImageFile, isVideoFile, parseTagging } from 'src/lib/util'
 const archiver = require('archiver')
 @Injectable()
 export class SsoService {
@@ -71,7 +71,10 @@ export class SsoService {
           const name = path.basename(obj.name)
 
           obj.thumb = '/sso/' + path.join(bucket.name, obj.name)
-          obj.source = '/sso/' + path.join(NO_GROUP_BUCKET, obj.tags?.source)
+
+          if (obj.tags?.source) {
+            obj.source = '/sso/' + obj.tags?.source
+          }
         })
       }
 
@@ -140,6 +143,13 @@ export class SsoService {
 
   async putObject(bucketName: string, objectName: string, stream) {
     try {
+      // 先判断分桶是否存在，不存在就创建分桶
+      const exists = await this.minioClient.bucketExists(bucketName)
+
+      if (!exists) {
+        await this.minioClient.makeBucket(bucketName)
+      }
+
       return await this.minioClient.putObject(bucketName, objectName, stream)
     } catch(err) {
       throw err
@@ -175,8 +185,12 @@ export class SsoService {
       // 复制之后记录下source新增相册，后期移除的时候才能知道什么时候清除source
       await this.copyObject(bucketName, objectName, sourceObject, removeSource)
 
-      const source = path.join(SOURCE_DIR, path.basename(objectName))
-      const tags = await this.minioClient.getObjectTagging(NO_GROUP_BUCKET, source)
+      const tTags = await this.minioClient.getObjectTagging(bucketName, objectName)
+      const tTagging: any = parseTagging(tTags)
+      const sPath = tTagging.source.split('/')
+      const sBucketName = sPath.shift()
+      const source = sPath.join('/')
+      const tags = await this.minioClient.getObjectTagging(sBucketName, source)
       const tagging: any = parseTagging(tags)
       const refs = tagging.refs ? tagging.refs.split(',') : []
 
@@ -196,7 +210,7 @@ export class SsoService {
         }
       }
 
-      await this.pubObjectTagging(NO_GROUP_BUCKET, source, {
+      await this.pubObjectTagging(sBucketName, source, {
         refs: refs.join(',')
       })
 
@@ -233,11 +247,12 @@ export class SsoService {
   async removeObjects(bucketName: string, objectsList: Array<string>) {
     try {
       for (const objectName of objectsList) {
-        await this.removeObject(bucketName, objectName)
-
-        // 删除完后，清除tags.refs
-        const source = path.join(SOURCE_DIR, path.basename(objectName))
-        const tags = await this.minioClient.getObjectTagging(NO_GROUP_BUCKET, source)
+        const tTags = await this.minioClient.getObjectTagging(bucketName, objectName)
+        const tTagging: any = parseTagging(tTags)
+        const sPath = tTagging.source.split('/')
+        const sBucketName = sPath.shift()
+        const source = sPath.join('/')
+        const tags = await this.minioClient.getObjectTagging(sBucketName, source)
         const tagging: any = parseTagging(tags)
         const refs = tagging.refs ? tagging.refs.split(',') : []
         const idx = refs.findIndex(item => item === bucketName + '/' + objectName)
@@ -248,12 +263,14 @@ export class SsoService {
 
         // 清除完tags.refs，清除source文件
         if (!refs.length) {
-          await this.removeObject(NO_GROUP_BUCKET, source)
+          await this.removeObject(sBucketName, source)
         } else {
-          await this.pubObjectTagging(NO_GROUP_BUCKET, source, {
+          await this.pubObjectTagging(sBucketName, source, {
             refs: refs.join(',')
           })
         }
+
+        await this.removeObject(bucketName, objectName)
       }
     } catch(err) {
       throw err
@@ -264,9 +281,10 @@ export class SsoService {
   async upload(file) {
     try {
       const { originalname: basename, mimetype, buffer: stream } = file
+
       if (isImageFile(mimetype)) {
         // 图片上传
-        const name = new Date().getTime() + '__' + basename
+        const name = 'IMG__' + basename
         const sourcePath = path.join(SOURCE_DIR, name)
         const minPath = path.join(MIN_DIR, name)
         const thumbPath = path.join(THUMB_DIR, name)
@@ -301,6 +319,26 @@ export class SsoService {
         }, {
           delay: 3000
         })
+      } else if (isVideoFile(mimetype)) {
+        // 视频上传
+        // 存入视频目录
+        const name = 'VIDEO__' + basename
+        const sourcePath = path.join(SOURCE_DIR, name)
+        await this.putObject(VIDEO_BUCKET, sourcePath, stream)
+
+        // 人脸识别分桶
+        await this.albumQueue.add('video', {
+          bucketName: VIDEO_BUCKET,
+          basename: name,
+          objectName: sourcePath
+        }, {
+          delay: 10000
+        })
+
+        // 删除源文件
+        if (file.removeSource) {
+          await fs.rm(file.filepath)
+        }
       } else {
         await this.putObject(OTHERS_BUCKET, basename, stream)
 
@@ -380,8 +418,8 @@ export class SsoService {
   // add object tag
   async pubObjectTagging(bucketName: string, objectName: string, tags) {
     try {
-      const source = path.join(SOURCE_DIR, path.basename(objectName))
-      const tag = await this.minioClient.getObjectTagging(NO_GROUP_BUCKET, source)
+      // const source = path.join(SOURCE_DIR, path.basename(objectName))
+      const tag = await this.minioClient.getObjectTagging(bucketName, objectName)
       const tagging: any = parseTagging(tag)
 
       await this.minioClient.setObjectTagging(bucketName, objectName, {
@@ -444,7 +482,7 @@ export class SsoService {
 
   // 批量下载::打包下载
   download(bucketName: string, list: Array<string>): Promise<string> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
         const { root, downloadRoot } = this
         const filePath = path.join(downloadRoot, `${new Date().getTime()}.zip`)
@@ -477,8 +515,10 @@ export class SsoService {
         archive.pipe(output)
 
         for (const objectName of list) {
-          const basename = path.basename(objectName)
-          archive.append(createReadStream(path.join(root, NO_GROUP_BUCKET, SOURCE_DIR, basename)), { name: basename })
+          const tags = await this.minioClient.getObjectTagging(bucketName, objectName)
+          const tagging: any = parseTagging(tags)
+          const basename = path.basename(tagging.source)
+          archive.append(createReadStream(path.join(root, tagging.source)), { name: basename })
         }
 
         archive.finalize()

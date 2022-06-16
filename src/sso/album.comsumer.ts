@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises'
+import { createReadStream } from 'fs'
 import { Processor, Process } from '@nestjs/bull'
 import { Job } from 'bull'
 import { ConfigService } from '@nestjs/config'
@@ -7,18 +8,19 @@ const gm = require('gm')
 import { imagemin } from 'src/lib/imagemin'
 import { SsoService } from './sso.service'
 import { FaceaiService } from 'src/faceai/faceai.service'
-import { NEED_RECOGNITION_BUCKET, BUCKET_PREFIX, OTHER_BUCKET, NO_GROUP_BUCKET } from 'src/constants'
-
+import { NEED_RECOGNITION_BUCKET, BUCKET_PREFIX, OTHER_BUCKET, NO_GROUP_BUCKET, THUMB_DIR, VIDEO_BUCKET } from 'src/constants'
 @Processor('album')
 export class AlbumConsumer {
   private root
   private imageminRoot
   private thumbRoot
+  private videoRoot
 
   constructor(private configService: ConfigService, private ssoService: SsoService, private faceaiService:FaceaiService) {
     this.root = configService.get<string>('MINIO_SERVER_ROOT')
     this.imageminRoot = configService.get<string>('IMAGEMIN_DIR')
     this.thumbRoot = configService.get<string>('THUMB_DIR')
+    this.videoRoot = configService.get<string>('VIDEO_DIR')
   }
 
   @Process('imagemin')
@@ -110,44 +112,8 @@ export class AlbumConsumer {
   @Process('thumbnail')
   async thumbnail(job: Job) {
     try {
-      const { root, thumbRoot } = this
-      const { bucketName, basename, objectName, thumbName } = job.data
-      const filepath = path.join(root, bucketName, objectName)
-      const output = path.join(thumbRoot, basename)
-
-      gm(filepath)
-        .resize(320, 320)
-        .noProfile()
-        .write(output, async(err) => {
-          if (err) {
-            console.log('thumbnail gm error::', objectName, err)
-            return
-          }
-
-          const fd = await fs.open(output, 'r')
-          const stream = fd.createReadStream()
-
-          await this.ssoService.putObject(bucketName, thumbName, stream)
-
-          // 添加tag指向源文件
-          const tag: any = {
-            source: objectName
-          }
-
-          // 判断文件名是否正确的日期
-          const time = new Date(basename.split('__')[1].replace(/\.\w+$/, '') - 0).getTime()
-
-          if (time) {
-            tag.orginTime = time
-          }
-
-          await this.ssoService.pubObjectTagging(bucketName, thumbName, tag)
-
-          // 删除文件
-          await fs.rm(output)
-
-          console.log('thumbnail success::', objectName)
-        })
+      await this.makeThumbnail(job.data)
+      console.log('thumbnail success::', job.data.objectName)
     } catch (err) {
       console.log('thumbnail error::', job.data.objectName, err)
     }
@@ -165,5 +131,109 @@ export class AlbumConsumer {
     } catch (err) {
       console.log('download error::', job.data, err)
     }
+  }
+
+  @Process('video')
+  async video(job: Job) {
+    try {
+      const { bucketName, basename, objectName } = job.data
+      const filePath = path.join(this.root, bucketName, objectName)
+
+      // 逐帧截屏
+      const output = await this.faceaiService.screenshots(filePath)
+
+      // 人脸识别
+      const result: any = await this.faceaiService.videoRecognize(bucketName, objectName, output)
+      const extname = path.extname(basename)
+      const name = path.basename(basename, extname) + '.jpg'
+      const thumbName = path.join(THUMB_DIR, name)
+
+      if (result.recognition) {
+        // 识别成功
+        for (const key in result.map) {
+          const newBucketName = `${BUCKET_PREFIX}-${key.toLocaleLowerCase()}`
+          await this.makeThumbnail({
+            bucketName: NO_GROUP_BUCKET,
+            basename: name,
+            input: result.map[key],
+            objectName,
+            thumbName,
+            source: path.join(bucketName, objectName)
+          })
+          await this.ssoService.copyPhoto(newBucketName, thumbName, path.join(NO_GROUP_BUCKET, thumbName))
+        }
+      } else {
+        // 识别失败
+        await this.makeThumbnail({
+          bucketName: NO_GROUP_BUCKET,
+          basename: name,
+          input: result.thumb,
+          objectName,
+          thumbName,
+          source: path.join(bucketName, objectName)
+        })
+        await this.ssoService.copyPhoto(VIDEO_BUCKET, thumbName, path.join(NO_GROUP_BUCKET, thumbName))
+      }
+
+      await fs.rm(output, {
+        recursive: true,
+        force: true
+      })
+
+      console.log('video success::', objectName, output)
+    } catch (err) {
+      console.log('video error::', job.data, err)
+    }
+  }
+
+  async makeThumbnail(data) {
+    return new Promise((resolve, reject) => {
+      try {
+        const { root, thumbRoot } = this
+        const { bucketName, basename, objectName, thumbName, input, source } = data
+        const filepath = input || path.join(root, bucketName, objectName)
+        const output = path.join(thumbRoot, basename)
+
+        gm(filepath)
+          .resize(320, 320)
+          .noProfile()
+          .write(output, async(err) => {
+            if (err) {
+              console.log('thumbnail gm error::', objectName, err)
+              return
+            }
+
+            try {
+              const fd = await fs.open(output, 'r')
+              const stream = fd.createReadStream()
+
+              await this.ssoService.putObject(bucketName, thumbName, stream)
+
+              // 添加tag指向源文件
+              const tag: any = {
+                source: source || path.join(bucketName, objectName)
+              }
+
+              // 判断文件名是否正确的日期
+              const time = new Date(basename.split('__')[1].replace(/\.\w+$/, '') - 0).getTime()
+
+              if (time) {
+                tag.orginTime = time
+              }
+
+              await this.ssoService.pubObjectTagging(bucketName, thumbName, tag)
+
+              // 删除文件
+              await fs.rm(output)
+
+              resolve(null)
+            } catch (err) {
+              reject(err)
+            }
+          })
+      } catch (err) {
+        reject(err)
+      }
+    })
   }
 }
