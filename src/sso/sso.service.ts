@@ -13,7 +13,7 @@ import { isImageFile, isVideoFile, parseTagging } from 'src/lib/util'
 const archiver = require('archiver')
 import * as moment from 'moment'
 
-const regQQ = /^(\d{4}_\d{4}-\d{2}-\d{2})_\S+(\.\w+)$/
+const regQQ = /^(\d{4})_(\d{4}-\d{2}-\d{2})_\S+(\.\w+)$/
 @Injectable()
 export class SsoService {
   private root
@@ -289,7 +289,7 @@ export class SsoService {
       let basename
 
       if (match) {
-        basename = moment(match[1], 'HHmm_YYYY-MM-DD').valueOf() + match[2]
+        basename = moment(match[2], 'YYYY-MM-DD').add(match[1] - 0, 's').valueOf() + match[2]
       } else {
         basename = originalname
       }
