@@ -146,7 +146,8 @@ export class AlbumConsumer {
       const dimensions = sizeOf(path.join(output, 'screenshot-1.jpg'))
       const tags = {
         width: dimensions.width,
-        height: dimensions.height
+        height: dimensions.height,
+        type: 'video'
       }
 
       // 人脸识别
