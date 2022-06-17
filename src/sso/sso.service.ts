@@ -473,9 +473,11 @@ export class SsoService {
   async update(data) {
     try {
       const { bucketName, values } = data
-
+      let tags
       // 处理保留值
-      const tags = await this.minioClient.getBucketTagging(bucketName)
+      try {
+        tags = await this.minioClient.getBucketTagging(bucketName)
+      } catch (err) {}
       const tagging = parseTagging(tags)
       const inheritValues = pick(tagging, ['type'])
 
