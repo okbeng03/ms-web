@@ -102,6 +102,7 @@ export class FaceaiService {
         list
       }
     } catch (err) {
+      console.log(1, err)
       if (err.code === 'ERR_BAD_REQUEST' && err?.response?.data?.message === 'No face is found in the given image') {
         // 非人物照片，移到其他文件分组
         return {
