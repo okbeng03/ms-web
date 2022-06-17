@@ -5,6 +5,7 @@ import { Job } from 'bull'
 import { ConfigService } from '@nestjs/config'
 const path = require('path')
 const gm = require('gm')
+import sizeOf from 'image-size'
 import { imagemin } from 'src/lib/imagemin'
 import { SsoService } from './sso.service'
 import { FaceaiService } from 'src/faceai/faceai.service'
@@ -142,6 +143,12 @@ export class AlbumConsumer {
       // 逐帧截屏
       const output = await this.faceaiService.screenshots(filePath)
 
+      const dimensions = sizeOf(path.join(output, 'screenshot-1.jpg'))
+      const tags = {
+        width: dimensions.width,
+        height: dimensions.height
+      }
+
       // 人脸识别
       const result: any = await this.faceaiService.videoRecognize(bucketName, objectName, output)
       const extname = path.extname(basename)
@@ -158,7 +165,8 @@ export class AlbumConsumer {
             input: result.map[key],
             objectName,
             thumbName,
-            source: path.join(bucketName, objectName)
+            source: path.join(bucketName, objectName),
+            tagging: tags
           })
           await this.ssoService.copyPhoto(newBucketName, thumbName, path.join(NO_GROUP_BUCKET, thumbName))
         }
@@ -170,7 +178,8 @@ export class AlbumConsumer {
           input: result.thumb,
           objectName,
           thumbName,
-          source: path.join(bucketName, objectName)
+          source: path.join(bucketName, objectName),
+          tagging: tags
         })
         await this.ssoService.copyPhoto(VIDEO_BUCKET, thumbName, path.join(NO_GROUP_BUCKET, thumbName))
       }
@@ -190,7 +199,7 @@ export class AlbumConsumer {
     return new Promise((resolve, reject) => {
       try {
         const { root, thumbRoot } = this
-        const { bucketName, basename, objectName, thumbName, input, source } = data
+        const { bucketName, basename, objectName, thumbName, input, source, tagging = {} } = data
         const filepath = input || path.join(root, bucketName, objectName)
         const output = path.join(thumbRoot, basename)
 
@@ -211,7 +220,8 @@ export class AlbumConsumer {
 
               // 添加tag指向源文件
               const tag: any = {
-                source: source || path.join(bucketName, objectName)
+                source: source || path.join(bucketName, objectName),
+                ...tagging
               }
 
               // 判断文件名是否正确的日期

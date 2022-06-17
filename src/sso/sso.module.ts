@@ -12,8 +12,8 @@ import { FaceaiModule } from 'src/faceai/faceai.module'
   exports: [SsoService],
   imports: [
     MinioModule.register({
-      // endPoint: '127.0.0.1',
-      endPoint: '192.168.3.182',
+      endPoint: '127.0.0.1',
+      // endPoint: '192.168.3.182',
       port: 9000,
       useSSL: false,
       accessKey: 'minioadmin',

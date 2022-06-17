@@ -37,6 +37,7 @@
     "fluent-ffmpeg": "^2.1.2",
     "folder-walker": "^3.2.0",
     "gm": "^1.23.1",
+    "image-size": "^1.0.1",
     "imagemin": "7.0.1",
     "imagemin-gifsicle": "7.0.0",
     "imagemin-mozjpeg": "6.0.0",
