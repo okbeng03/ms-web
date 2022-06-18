@@ -289,7 +289,7 @@ export class SsoService {
       let basename
 
       if (match) {
-        basename = moment(match[2], 'YYYY-MM-DD').add(match[1] - 0, 's').valueOf() + match[2]
+        basename = moment(match[2], 'YYYY-MM-DD').add(match[1] - 0, 's').valueOf() + match[3]
       } else {
         basename = originalname
       }
