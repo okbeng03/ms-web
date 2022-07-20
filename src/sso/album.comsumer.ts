@@ -27,23 +27,22 @@ export class AlbumConsumer {
   @Process('imagemin')
   async imagemin(job: Job) {
     try {
-      const { root, imageminRoot } = this
+      const { imageminRoot } = this
       const { bucketName, basename, objectName, minObjectName } = job.data
-      const filepath = path.join(root, bucketName, objectName)
+      const { stream, size }: any = await this.ssoService.getObject(bucketName, objectName)
 
       // 判断图片小于1M就不压缩，直接同步到压缩文件夹
-      const stat = await fs.stat(filepath)
-
-      if (stat.size >= 5000000) {
+      if (size >= 5000000) {
+        const filepath = path.join(imageminRoot, basename)
+        const fd = await fs.open(filepath, 'w')
+        const ws = fd.createWriteStream()
+        stream.pipe(ws)
         await imagemin(filepath, imageminRoot)
         job.progress(50)
         
         // 图片上传
         const minFilepath = path.join(imageminRoot, basename)
-        const fd = await fs.open(minFilepath, 'r')
-        const stream = fd.createReadStream()
-
-        await this.ssoService.putObject(bucketName, minObjectName, stream)
+        await this.ssoService.putObject(bucketName, minObjectName, createReadStream(minFilepath))
         await this.ssoService.pubObjectTagging(bucketName, objectName, {
           mini: minObjectName
         })
@@ -69,9 +68,7 @@ export class AlbumConsumer {
       const { bucketName, basename, objectName, minObjectName, thumbName, sourcePath, removeSource, reRecognition = false } = job.data
       
       const tagging: any = await this.ssoService.getObjectTagging(NO_GROUP_BUCKET, objectName)
-      const filepath = path.join(root, NO_GROUP_BUCKET, tagging.mini || objectName)
-      const fd = await fs.open(filepath, 'r')
-      const stream = fd.createReadStream()
+      const { stream }: any = await this.ssoService.getObject(NO_GROUP_BUCKET, tagging.mini || objectName)
       const { recognition, list = [] } = await this.faceaiService.recognize(stream)
 
       if (recognition) {
@@ -138,11 +135,9 @@ export class AlbumConsumer {
   async video(job: Job) {
     try {
       const { bucketName, basename, objectName } = job.data
-      const filePath = path.join(this.root, bucketName, objectName)
-
+      const { stream }: any = await this.ssoService.getObject(bucketName, objectName)
       // 逐帧截屏
-      const output = await this.faceaiService.screenshots(filePath)
-
+      const output = await this.faceaiService.screenshots(stream, objectName)
       const dimensions = sizeOf(path.join(output, 'screenshot-1.jpg'))
       const tags = {
         width: dimensions.width,
@@ -197,11 +192,17 @@ export class AlbumConsumer {
   }
 
   async makeThumbnail(data) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
-        const { root, thumbRoot } = this
+        const { thumbRoot } = this
         const { bucketName, basename, objectName, thumbName, input, source, tagging = {} } = data
-        const filepath = input || path.join(root, bucketName, objectName)
+        let filepath = input
+
+        if (!filepath) {
+          const { stream }: any = await this.ssoService.getObject(bucketName, objectName)
+          filepath = stream
+        }
+
         const output = path.join(thumbRoot, basename)
 
         gm(filepath)

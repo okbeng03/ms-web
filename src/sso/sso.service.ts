@@ -1,5 +1,7 @@
 import * as fs from 'fs/promises'
 import { createWriteStream, createReadStream } from 'fs'
+import { Buffer } from 'buffer'
+import { Readable } from 'stream'
 const path = require('path')
 import { Injectable, Inject, CACHE_MANAGER } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
@@ -157,6 +159,34 @@ export class SsoService {
     } catch(err) {
       throw err
     }
+  }
+
+  async getObject(bucketName: string, objectName: string) {
+    return new Promise((resolve, reject) => {
+      let size = 0
+      let data = []
+      this.minioClient.getObject(bucketName, objectName, function(err, dataStream) {
+        if (err) {
+          reject(err)
+          return
+        }
+        dataStream.on('data', function(chunk) {
+          data.push(chunk)
+          size += chunk.length
+        })
+        dataStream.on('end', function() {
+          const buf = Buffer.concat(data)
+          const stream = Readable.from(buf)
+          resolve({
+            stream: stream,
+            size
+          })
+        })
+        dataStream.on('error', function(err) {
+          reject(err)
+        })
+      })
+    })
   }
 
   // 复制
@@ -498,7 +528,7 @@ export class SsoService {
   download(bucketName: string, list: Array<string>): Promise<string> {
     return new Promise(async (resolve, reject) => {
       try {
-        const { root, downloadRoot } = this
+        const { downloadRoot } = this
         const filePath = path.join(downloadRoot, `${new Date().getTime()}.zip`)
         const output = createWriteStream(filePath)
         const archive = archiver('zip', {
@@ -532,7 +562,9 @@ export class SsoService {
           const tags = await this.minioClient.getObjectTagging(bucketName, objectName)
           const tagging: any = parseTagging(tags)
           const basename = path.basename(tagging.source)
-          archive.append(createReadStream(path.join(root, tagging.source)), { name: basename })
+          const source = tagging.source.split('/')
+          const { stream }: any = await this.getObject(source.shift(), path.join(...source))
+          archive.append(stream, { name: basename })
         }
 
         archive.finalize()

@@ -55,7 +55,8 @@ export class FaceaiService {
           const fd = await fs.open(filepath, 'r')
           const stream = fd.createReadStream()
           await this.faceCollection.add(stream, subject)
-          await fs.rm(filepath)
+          // 保留源文件，已方便后续同步
+          // await fs.rm(filepath)
           resolve(null)
         } catch(err) {
           await fs.rm(filepath)
@@ -102,7 +103,6 @@ export class FaceaiService {
         list
       }
     } catch (err) {
-      console.log(1, err)
       if (err.code === 'ERR_BAD_REQUEST' && err?.response?.data?.message === 'No face is found in the given image') {
         // 非人物照片，移到其他文件分组
         return {
@@ -115,14 +115,19 @@ export class FaceaiService {
   }
 
   // 逐帧截屏
-  async screenshots(input: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const basename = path.basename(input)
-      const output = path.join(this.videoRoot, basename, 'screenshot-%i.jpg')
+  async screenshots(stream: any, objectName: string): Promise<string> {
+    return new Promise(async (resolve, reject) => {
+      const basename = path.basename(objectName)
+      const input = path.join(this.videoRoot, basename)
+      const fd = await fs.open(input, 'w')
+      const ws = fd.createWriteStream()
+      stream.pipe(ws)
+      const output = path.join(this.videoRoot, path.basename(basename, path.extname(basename)), 'screenshot-%i.jpg')
       const outputPath = path.parse(output)
 
       ffmpeg(input)
-        .on('end', () => {
+        .on('end', async () => {
+          await fs.rm(input)
           resolve(outputPath.dir)
         })
         .on('err', (err) => {
